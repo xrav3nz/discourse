@@ -29,8 +29,9 @@ describe QueuedPostsController do
   end
 
   describe '#update' do
-    before { sign_in(Fabricate(:moderator)) }
+    let(:moderator) { Fabricate(:moderator) }
     let(:qp) { Fabricate(:queued_post) }
+    before { sign_in(moderator) }
 
     context 'not found' do
       it 'returns json error' do
@@ -80,26 +81,24 @@ describe QueuedPostsController do
           raw: 'new raw',
           title: 'new title',
           category_id: 10,
-          tags: ['new_tag']
+          tags: ['new_tag'],
+          edit_reason: 'keep everything up to date'
         }
       end
 
       context 'when it is a topic' do
         let(:queued_topic) { Fabricate(:queued_topic) }
+        let!(:original_topic) { queued_topic.dup }
 
-        it 'updates the topic attributes' do
+        before do
           put "/queued_posts/#{queued_topic.id}.json", params: {
             queued_post: changes
           }
 
-          expect(response.status).to eq(200)
           queued_topic.reload
-
-          expect(queued_topic.raw).to eq(changes[:raw])
-          expect(queued_topic.post_options['title']).to eq(changes[:title])
-          expect(queued_topic.post_options['category']).to eq(changes[:category_id])
-          expect(queued_topic.post_options['tags']).to eq(changes[:tags])
         end
+
+        it { expect(response.status).to eq(200) }
 
         it 'removes tags if not present' do
           queued_topic.post_options[:tags] = ['another-tag']
@@ -108,33 +107,63 @@ describe QueuedPostsController do
           put "/queued_posts/#{queued_topic.id}.json", params: {
             queued_post: changes.except(:tags)
           }
-
           expect(response.status).to eq(200)
-          queued_topic.reload
 
-          expect(queued_topic.raw).to eq(changes[:raw])
-          expect(queued_topic.post_options['title']).to eq(changes[:title])
-          expect(queued_topic.post_options['category']).to eq(changes[:category_id])
-          expect(queued_topic.post_options['tags']).to be_nil
+          queued_topic.reload
+          expect(queued_topic.post_options['changes']['tags']).to be_nil
+        end
+
+        it 'save the changes to post_options[:changes]' do
+          expect(queued_topic.post_options['changes']['raw']).to eq(changes[:raw])
+          expect(queued_topic.post_options['changes']['title']).to eq(changes[:title])
+          expect(queued_topic.post_options['changes']['category_id']).to eq(changes[:category_id])
+          expect(queued_topic.post_options['changes']['tags']).to eq(changes[:tags])
+        end
+
+        it 'does not affect the original post data' do
+          expect(queued_topic.raw).to eq(original_topic.raw)
+          expect(queued_topic.post_options['title']).to eq(original_topic.post_options['title'])
+          expect(queued_topic.post_options['category']).to eq(original_topic.post_options['category'])
+          expect(queued_topic.post_options['tags']).to eq(original_topic.post_options['tags'])
+        end
+
+        it 'records editor_id and edit_reason' do
+          expect(queued_topic.post_options['changes']['editor_id']).to eq(moderator.id)
+          expect(queued_topic.post_options['changes']['edit_reason']).to eq(changes[:edit_reason])
         end
       end
 
       context 'when it is a reply' do
         let(:queued_reply) { Fabricate(:queued_post) }
+        let!(:original_reply) { queued_reply.dup }
 
-        it 'updates the reply attributes' do
+        before do
           put "/queued_posts/#{queued_reply.id}.json", params: {
             queued_post: changes
           }
 
-          original_category = queued_reply.post_options['category']
-          expect(response.status).to eq(200)
           queued_reply.reload
+        end
 
-          expect(queued_reply.raw).to eq(changes[:raw])
-          expect(queued_reply.post_options['title']).to be_nil
-          expect(queued_reply.post_options['category']).to eq(original_category)
-          expect(queued_reply.post_options['tags']).to be_nil
+        it { expect(response.status).to eq(200) }
+
+        it 'save the changes to post_options[:changes]' do
+          expect(queued_reply.post_options['changes']['raw']).to eq(changes[:raw])
+          expect(queued_reply.post_options['changes']['title']).to be_nil, "title cannot be edited for a reply"
+          expect(queued_reply.post_options['changes']['category_id']).to be_nil, "category cannot be edited for a reply"
+          expect(queued_reply.post_options['changes']['tags']).to be_nil, "tags cannot be edited for a reply"
+        end
+
+        it 'does not affect the original post data' do
+          expect(queued_reply.raw).to eq(original_reply.raw)
+          expect(queued_reply.post_options['title']).to eq(original_reply.post_options['title'])
+          expect(queued_reply.post_options['category']).to eq(original_reply.post_options['category'])
+          expect(queued_reply.post_options['tags']).to eq(original_reply.post_options['tags'])
+        end
+
+        it 'records editor_id and edit_reason' do
+          expect(queued_reply.post_options['changes']['editor_id']).to eq(moderator.id)
+          expect(queued_reply.post_options['changes']['edit_reason']).to eq(changes[:edit_reason])
         end
       end
     end
