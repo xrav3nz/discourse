@@ -83,7 +83,7 @@ class PostCreator
   end
 
   def guardian
-    @guardian ||= Guardian.new(@user)
+    @guardian ||= Guardian.new(@opts[:acting_user] || @user)
   end
 
   def valid?
