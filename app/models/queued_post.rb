@@ -73,7 +73,8 @@ class QueuedPost < ActiveRecord::Base
     ))
     revisor = nil
 
-    QueuedPost.transaction do
+    transaction do
+      UserSilencer.unsilence(user, approved_by) if user.silenced?
       change_to!(:approved, approved_by)
 
       UserSilencer.unsilence(user, approved_by) if user.silenced?
