@@ -1,3 +1,11 @@
 #!/bin/bash
 
+has_docker_sync() {
+  command -v docker-sync >/dev/null 2>&1
+}
+
 docker rm -f discourse_dev
+
+if [ has_docker_sync ]; then
+  docker-sync stop
+fi

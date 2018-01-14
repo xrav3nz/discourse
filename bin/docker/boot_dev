@@ -13,6 +13,10 @@ Usage: ${0##*/} [-h] [--init]
 EOF
 }
 
+has_docker_sync() {
+    command -v docker-sync >/dev/null 2>&1
+}
+
 initialize=""
 
 while [ "${#@}" -ne "0" ]; do
@@ -38,7 +42,12 @@ echo "Using data in:   ${DATA_DIR}"
 
 mkdir -p "${DATA_DIR}"
 
-docker run -d -p 1080:1080 -p 3000:3000 -v "$DATA_DIR:/shared/postgres_data" -v "$SOURCE_DIR:/src" --hostname=discourse --name=discourse_dev --restart=always discourse/discourse_dev:release /sbin/boot
+if [ has_docker_sync ]; then
+    docker-sync start
+    docker run -d -p 1080:1080 -p 3000:3000 --volumes-from discourse-sync --volumes-from postgres-sync -v "postgres-sync:/shared/postgres_data:nocopy" -v "discourse-sync:/src:nocopy" --hostname=discourse --name=discourse_dev --restart=always discourse/discourse_dev:release /sbin/boot
+else
+    docker run -d -p 1080:1080 -p 3000:3000 -v "$DATA_DIR:/shared/postgres_data" -v "$SOURCE_DIR:/src" --hostname=discourse --name=discourse_dev --restart=always discourse/discourse_dev:release /sbin/boot
+fi
 
 if [ "${initialize}" = "initialize" ]; then
     echo "Installing gems..."

@@ -1,0 +1,13 @@
+version: "2"
+
+syncs:
+  discourse-sync:
+    src: './'
+    sync_userid: '1000'
+    sync_groupid: '1000'
+    sync_excludes: ['tmp/cache', '.DS_Store', '._*', 'data/postgres*', 'log/development.log']
+  postgres-sync:
+    src: './data/postgres'
+    sync_userid: '107'
+    sync_groupid: '112'
+
