@@ -1,11 +1,5 @@
 language: ruby
 
-branches:
-  only:
-    - master
-    - beta
-    - stable
-
 env:
   global:
     - TRAVIS_NODE_VERSION="10"
