@@ -1,9 +1,13 @@
-import { default as computed } from "ember-addons/ember-computed-decorators";
+import {
+  default as computed,
+  observes
+} from "ember-addons/ember-computed-decorators";
 import { url } from "discourse/lib/computed";
 import { popupAjaxError } from "discourse/lib/ajax-error";
 import showModal from "discourse/lib/show-modal";
 import ThemeSettings from "admin/models/theme-settings";
 import { THEMES, COMPONENTS } from "admin/models/theme";
+import { escapeExpression } from "discourse/lib/utilities";
 
 const THEME_UPLOAD_VAR = 2;
 
@@ -12,17 +16,6 @@ export default Ember.Controller.extend({
   previewUrl: url("model.id", "/admin/themes/%@/preview"),
   addButtonDisabled: Em.computed.empty("selectedChildThemeId"),
   editRouteName: "adminCustomizeThemes.edit",
-
-  @computed("model", "allThemes", "model.component")
-  parentThemes(model, allThemes) {
-    if (!model.get("component")) {
-      return null;
-    }
-    const parents = allThemes.filter(theme =>
-      _.contains(theme.get("childThemes"), model)
-    );
-    return parents.length === 0 ? null : parents;
-  },
 
   @computed("model.editedFields")
   editedFieldsFormatted() {
@@ -48,22 +41,37 @@ export default Ember.Controller.extend({
     return colorSchemeId !== existingId;
   },
 
-  @computed("availableChildThemes", "model.childThemes.@each", "model")
-  selectableChildThemes(available, childThemes) {
-    if (available) {
-      const themes = !childThemes
-        ? available
-        : available.filter(theme => childThemes.indexOf(theme) === -1);
-      return themes.length === 0 ? null : themes;
+  @computed("allThemes", "model.component")
+  availableComponents(allThemes, component) {
+    return component ? [] : allThemes.filterBy("component", true);
+  },
+
+  @computed("availableComponents.[]", "model.selectableComponents.[]")
+  activeComponentsList(available, selectableList) {
+    return available.filter(theme => !selectableList.includes(theme));
+  },
+
+  @computed("availableComponents.[]", "model.activeComponents.[]")
+  selectableComponentsList(available, activeList) {
+    return available.filter(theme => !activeList.includes(theme));
+  },
+
+  @observes("model.activeComponents.[]", "activeComponentsList")
+  updateActiveComponentsIds() {
+    if (!this.get("model.component")) {
+      this.set(
+        "activeComponentsIds",
+        this.get("model.activeComponents").mapBy("id")
+      );
     }
   },
 
-  @computed("allThemes", "model.component", "model")
-  availableChildThemes(allThemes) {
+  @observes("model.selectableComponents.[]", "selectableComponentsList")
+  updateSelectableComponentsIds() {
     if (!this.get("model.component")) {
-      const themeId = this.get("model.id");
-      return allThemes.filter(
-        theme => theme.get("id") !== themeId && theme.get("component")
+      this.set(
+        "selectableComponentsIds",
+        this.get("model.selectableComponents").mapBy("id")
       );
     }
   },
@@ -100,6 +108,11 @@ export default Ember.Controller.extend({
     return errorMessage && !updating;
   },
 
+  @computed("addedComponents.length", "removedComponents.length")
+  hasEditedComponents(added, removed) {
+    return added > 0 || removed > 0;
+  },
+
   editedFieldsForTarget(target) {
     return this.get("model.editedFields").filter(
       field => field.target === target
@@ -108,44 +121,44 @@ export default Ember.Controller.extend({
 
   commitSwitchType() {
     const model = this.get("model");
-    const newValue = !model.get("component");
-    model.set("component", newValue);
+    const switchToComponent = !model.get("component");
+    const parents = model.get("parentThemes");
+    const children = model.get("allComponents");
 
-    if (newValue) {
-      this.set("parentController.currentTab", COMPONENTS);
-    } else {
-      this.set("parentController.currentTab", THEMES);
-    }
+    model.switchType(switchToComponent);
+    this.set("colorSchemeId", null);
 
-    model
-      .saveChanges("component")
-      .then(() => {
-        this.set("colorSchemeId", null);
-
-        model.setProperties({
-          default: false,
-          color_scheme_id: null,
-          user_selectable: false,
-          child_themes: [],
-          childThemes: []
-        });
-
-        this.get("parentController.model.content").forEach(theme => {
-          const children = _.toArray(theme.get("childThemes"));
-          const rawChildren = _.toArray(theme.get("child_themes") || []);
-          const index = children ? children.indexOf(model) : -1;
-          if (index > -1) {
-            children.splice(index, 1);
-            rawChildren.splice(index, 1);
-            theme.setProperties({
-              childThemes: children,
-              child_themes: rawChildren
-            });
-          }
-        });
-      })
-      .catch(popupAjaxError);
+    model.saveChanges("component").then(() => {
+      if (switchToComponent) {
+        children.forEach(child =>
+          child.get("parentThemes").removeObject(model)
+        );
+        this.set("parentController.currentTab", COMPONENTS);
+      } else {
+        parents.forEach(parent => parent.removeComponent(model));
+        this.set("parentController.currentTab", THEMES);
+      }
+    });
   },
+
+  discardComponentsChanges() {
+    this.get("addedComponents").forEach(added => {
+      this.get("model").removeComponent(
+        this.get("allThemes").findBy("id", added.id)
+      );
+    });
+    this.get("removedComponents").forEach(removed => {
+      this.get("model").addComponent(
+        this.get("allThemes").findBy("id", removed.id),
+        removed.selectable
+      );
+    });
+    this.setProperties({
+      addedComponents: [],
+      removedComponents: []
+    });
+  },
+
   transitionToEditRoute() {
     this.transitionToRoute(
       this.get("editRouteName"),
@@ -241,12 +254,6 @@ export default Ember.Controller.extend({
       this.get("model").saveChanges("user_selectable");
     },
 
-    addChildTheme() {
-      let themeId = parseInt(this.get("selectedChildThemeId"));
-      let theme = this.get("allThemes").findBy("id", themeId);
-      this.get("model").addChildTheme(theme);
-    },
-
     removeUpload(upload) {
       return bootbox.confirm(
         I18n.t("admin.customize.theme.delete_upload_confirm"),
@@ -260,10 +267,6 @@ export default Ember.Controller.extend({
       );
     },
 
-    removeChildTheme(theme) {
-      this.get("model").removeChildTheme(theme);
-    },
-
     destroy() {
       return bootbox.confirm(
         I18n.t("admin.customize.delete_confirm"),
@@ -273,6 +276,9 @@ export default Ember.Controller.extend({
           if (result) {
             const model = this.get("model");
             model.destroyRecord().then(() => {
+              model
+                .get("parentThemes")
+                .forEach(parent => parent.removeComponent(model));
               this.get("allThemes").removeObject(model);
               this.transitionToRoute("adminCustomizeThemes");
             });
@@ -281,12 +287,59 @@ export default Ember.Controller.extend({
       );
     },
 
+    addComponent(selectable, id) {
+      const obj = this.get("removedComponents").find(
+        c => c.id === id && c.selectable === selectable
+      );
+      if (obj) {
+        this.get("removedComponents").removeObject(obj);
+      } else {
+        this.get("addedComponents").pushObject({ id, selectable });
+      }
+      this.get("model").addComponent(
+        this.get("allThemes").findBy("id", id),
+        selectable
+      );
+    },
+
+    removeComponent(selectable, id) {
+      const obj = this.get("addedComponents").find(
+        c => c.id === id && c.selectable === selectable
+      );
+      if (obj) {
+        this.get("addedComponents").removeObject(obj);
+      } else {
+        this.get("removedComponents").pushObject({ id, selectable });
+      }
+      this.get("model").removeComponent(this.get("allThemes").findBy("id", id));
+    },
+
+    saveComponents() {
+      return this.get("model")
+        .saveComponents(
+          this.get("addedComponents"),
+          this.get("removedComponents")
+        )
+        .then(() => {
+          this.setProperties({
+            addedComponents: [],
+            removedComponents: []
+          });
+        });
+    },
+
+    cancelComponentsChanges() {
+      this.discardComponentsChanges();
+    },
+
     switchType() {
       const relatives = this.get("model.component")
-        ? this.get("parentThemes")
-        : this.get("model.childThemes");
+        ? this.get("model.parentThemes")
+        : this.get("model.allComponents");
       if (relatives && relatives.length > 0) {
-        const names = relatives.map(relative => relative.get("name"));
+        const names = relatives.map(relative =>
+          escapeExpression(relative.get("name"))
+        );
         bootbox.confirm(
           I18n.t(`${this.get("convertKey")}_alert`, {
             relatives: names.join(", ")

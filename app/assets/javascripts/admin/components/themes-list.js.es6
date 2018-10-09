@@ -8,11 +8,15 @@ export default Ember.Component.extend({
   classNames: ["themes-list"],
 
   hasThemes: Em.computed.gt("themesList.length", 0),
-  hasUserThemes: Em.computed.gt("userThemes.length", 0),
-  hasInactiveThemes: Em.computed.gt("inactiveThemes.length", 0),
+  showInactiveIndicator: Em.computed.and(
+    "activeThemes.length",
+    "inactiveThemes.length"
+  ),
 
   themesTabActive: Em.computed.equal("currentTab", THEMES),
   componentsTabActive: Em.computed.equal("currentTab", COMPONENTS),
+
+  parents: Em.computed.alias("themesList.@each.parentThemes"),
 
   @computed("themes", "components", "currentTab")
   themesList(themes, components) {
@@ -27,11 +31,12 @@ export default Ember.Component.extend({
     "themesList",
     "currentTab",
     "themesList.@each.user_selectable",
-    "themesList.@each.default"
+    "themesList.@each.default",
+    "parents.length"
   )
   inactiveThemes(themes) {
     if (this.get("componentsTabActive")) {
-      return [];
+      return themes.filter(theme => theme.get("parentThemes.length") === 0);
     }
     return themes.filter(
       theme => !theme.get("user_selectable") && !theme.get("default")
@@ -42,15 +47,17 @@ export default Ember.Component.extend({
     "themesList",
     "currentTab",
     "themesList.@each.user_selectable",
-    "themesList.@each.default"
+    "themesList.@each.default",
+    "parents.length"
   )
-  userThemes(themes) {
+  activeThemes(themes) {
     if (this.get("componentsTabActive")) {
-      return [];
+      themes = themes.filter(theme => theme.get("parentThemes.length") > 0);
+    } else {
+      themes = themes.filter(
+        theme => theme.get("user_selectable") || theme.get("default")
+      );
     }
-    themes = themes.filter(
-      theme => theme.get("user_selectable") || theme.get("default")
-    );
     return _.sortBy(themes, t => {
       return [
         !t.get("default"),

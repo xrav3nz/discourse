@@ -13,6 +13,16 @@ const Theme = RestModel.extend({
   isActive: Em.computed.or("default", "user_selectable"),
   isPendingUpdates: Em.computed.gt("remote_theme.commits_behind", 0),
   hasEditedFields: Em.computed.gt("editedFields.length", 0),
+  component: null,
+
+  init() {
+    this.setProperties({
+      allComponents: this.get("allComponents") || [],
+      parentThemes: this.get("parentThemes") || []
+    });
+
+    this._super();
+  },
 
   @computed("theme_fields")
   themeFields(fields) {
@@ -76,6 +86,18 @@ const Theme = RestModel.extend({
     }
   },
 
+  switchType(switchToComponent) {
+    this.setProperties({
+      default: false,
+      color_scheme_id: null,
+      user_selectable: false,
+      component: switchToComponent,
+      allComponents: [],
+      child_themes: [],
+      parentThemes: []
+    });
+  },
+
   getError(target, name) {
     let themeFields = this.get("themeFields");
     let key = this.getKey({ target, name });
@@ -130,32 +152,48 @@ const Theme = RestModel.extend({
     }
   },
 
-  @computed("childThemes.@each")
-  child_theme_ids(childThemes) {
-    if (childThemes) {
-      return childThemes.map(theme => Ember.get(theme, "id"));
-    }
+  @computed("allComponents.[]", "child_themes.[]")
+  activeComponents(components, raw) {
+    const active = raw.filterBy("selectable", false).mapBy("id");
+    return components.filter(component => active.includes(component.get("id")));
   },
 
-  removeChildTheme(theme) {
-    const childThemes = this.get("childThemes");
-    childThemes.removeObject(theme);
-    return this.saveChanges("child_theme_ids");
+  @computed("allComponents.[]", "child_themes.[]")
+  selectableComponents(components, raw) {
+    const selectable = raw.filterBy("selectable", true).mapBy("id");
+    return components.filter(component =>
+      selectable.includes(component.get("id"))
+    );
   },
 
-  addChildTheme(theme) {
-    let childThemes = this.get("childThemes");
-    if (!childThemes) {
-      childThemes = [];
-      this.set("childThemes", childThemes);
-    }
-    childThemes.removeObject(theme);
-    childThemes.pushObject(theme);
-    return this.saveChanges("child_theme_ids");
+  removeComponent(component) {
+    const child = this.get("child_themes").findBy("id", component.get("id"));
+    this.get("child_themes").removeObject(child);
+    component.get("parentThemes").removeObject(this);
+    this.get("allComponents").removeObject(component);
+  },
+
+  addComponent(component, selectable) {
+    this.get("child_themes").pushObject({
+      id: component.get("id"),
+      name: component.get("name"),
+      selectable
+    });
+    this.get("allComponents").pushObject(component);
+    component.get("parentThemes").pushObject(this);
+  },
+
+  saveComponents(added, removed) {
+    const hash = {
+      removed: removed.map(c => c.id),
+      added_selectable: added.filter(c => c.selectable).map(c => c.id),
+      added_active: added.filter(c => !c.selectable).map(c => c.id)
+    };
+    return this.save({ components_changes: hash }).catch(popupAjaxError);
   },
 
   @computed("name", "default")
-  description: function(name, isDefault) {
+  description(name, isDefault) {
     if (isDefault) {
       return I18n.t("admin.customize.theme.default_name", { name: name });
     } else {

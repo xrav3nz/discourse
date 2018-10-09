@@ -4,6 +4,10 @@ class ChildTheme < ActiveRecord::Base
 
   validate :child_validations
 
+  after_commit do
+    Theme.expire_site_cache!
+  end
+
   private
 
   def child_validations
@@ -25,6 +29,7 @@ end
 #  child_theme_id  :integer
 #  created_at      :datetime         not null
 #  updated_at      :datetime         not null
+#  user_selectable :boolean          default(FALSE), not null
 #
 # Indexes
 #

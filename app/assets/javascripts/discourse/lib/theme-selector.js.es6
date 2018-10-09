@@ -81,9 +81,17 @@ export function refreshCSS(node, hash, newHref, options) {
   $orig.data("copy", reloaded);
 }
 
+function eqCurrentThemeIds(ids) {
+  const currentIds = currentThemeIds();
+
+  return (
+    currentIds.length === ids.length && ids.every(id => currentIds.includes(id))
+  );
+}
+
 export function previewTheme(ids = []) {
   ids = ids.reject(id => !id);
-  if (!ids.includes(currentThemeId())) {
+  if (!eqCurrentThemeIds(ids)) {
     Discourse.set("assetVersion", "forceRefresh");
 
     ajax(`/themes/assets/${ids.length > 0 ? ids.join("-") : "default"}`).then(

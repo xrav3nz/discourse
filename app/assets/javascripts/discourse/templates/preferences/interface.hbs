@@ -10,6 +10,20 @@
 </div>
 {{/if}}
 
+{{#if hasComponents}}
+<div class="control-group components">
+  <label class="control-label">{{I18n "user.components"}}</label>
+  {{#each availableComponents as |component|}}
+    <div class="controls">
+      <label>
+        {{input checked=component.checked type="checkbox"}}
+        {{component.name}}
+      </label>
+    </div>
+  {{/each}}
+</div>
+{{/if}}
+
 {{#if siteSettings.allow_user_locale}}
   <div class="control-group pref-locale">
     <label class="control-label">{{i18n 'user.locale.title'}}</label>
@@ -21,7 +35,6 @@
     </div>
   </div>
 {{/if}}
-
 
 <div class="control-group home">
   <label class="control-label">{{i18n 'user.home'}}</label>

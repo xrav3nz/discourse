@@ -329,6 +329,9 @@ export default SelectKitComponent.extend({
     run.schedule("afterRender", () => {
       this.didDeselect(rowComputedContentItems);
       this.autoHighlight();
+      rowComputedContentItems.forEach(item =>
+        this._boundaryActionHandler("onDeselect", item.value)
+      );
     });
   },
 

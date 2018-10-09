@@ -6,15 +6,24 @@ export default RestAdapter.extend({
   },
 
   afterFindAll(results) {
-    let map = {};
+    const map = {};
     results.forEach(theme => {
       map[theme.id] = theme;
     });
+
     results.forEach(theme => {
-      let mapped = theme.get("child_themes") || [];
-      mapped = mapped.map(t => map[t.id]);
-      theme.set("childThemes", mapped);
+      const components = theme.get("allComponents");
+      const children = theme.get("child_themes") || [];
+
+      children.forEach(c => {
+        const child = map[c.id];
+        const parents = child.get("parentThemes");
+
+        components.pushObject(child);
+        parents.pushObject(theme);
+      });
     });
+
     return results;
   },
 

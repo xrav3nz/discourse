@@ -1,4 +1,5 @@
 import PreferencesTabController from "discourse/mixins/preferences-tab-controller";
+import debounce from "discourse/lib/debounce";
 import { setDefaultHomepage } from "discourse/lib/utilities";
 import {
   default as computed,
@@ -6,6 +7,7 @@ import {
 } from "ember-addons/ember-computed-decorators";
 import {
   currentThemeId,
+  currentThemeIds,
   listThemes,
   previewTheme,
   setLocalTheme
@@ -21,6 +23,8 @@ const USER_HOMES = {
 };
 
 export default Ember.Controller.extend(PreferencesTabController, {
+  hasComponents: Em.computed.gt("availableComponents.length", 0),
+
   @computed("makeThemeDefault")
   saveAttrNames(makeDefault) {
     let attrs = [
@@ -59,16 +63,41 @@ export default Ember.Controller.extend(PreferencesTabController, {
     return listThemes(this.site);
   }.property(),
 
+  @computed("themeId", "userComponents.[]")
+  availableComponents(parentId, userComponents) {
+    return userComponents.filterBy("parent_id", parentId);
+  },
+
+  @computed("site.user_components.[]")
+  userComponents(components) {
+    const current = currentThemeIds();
+
+    return components.map(component => {
+      const checked =
+        current.includes(component.id) && current[0] === component.parent_id;
+      return Em.Object.create({ checked }, component);
+    });
+  },
+
+  @computed("themeId", "availableComponents.@each.checked")
+  selectedThemeIds(themeId, components) {
+    if (themeId) {
+      const componentsIds = components.filterBy("checked", true).mapBy("id");
+      return [themeId, ...componentsIds];
+    } else {
+      return [];
+    }
+  },
+
   @computed("userSelectableThemes")
   showThemeSelector(themes) {
     return themes && themes.length > 1;
   },
 
-  @observes("themeId")
-  themeIdChanged() {
-    const id = this.get("themeId");
-    previewTheme([id]);
-  },
+  @observes("themeId", "availableComponents.@each.checked")
+  previewSelectedTheme: debounce(function() {
+    previewTheme(this.get("selectedThemeIds"));
+  }, 1000),
 
   homeChanged() {
     const siteHome = this.siteSettings.top_menu.split("|")[0].split(",")[0];
@@ -96,7 +125,7 @@ export default Ember.Controller.extend(PreferencesTabController, {
       this.set("saved", false);
       const makeThemeDefault = this.get("makeThemeDefault");
       if (makeThemeDefault) {
-        this.set("model.user_option.theme_ids", [this.get("themeId")]);
+        this.set("model.user_option.theme_ids", this.get("selectedThemeIds"));
       }
 
       return this.get("model")
@@ -106,7 +135,7 @@ export default Ember.Controller.extend(PreferencesTabController, {
 
           if (!makeThemeDefault) {
             setLocalTheme(
-              [this.get("themeId")],
+              this.get("selectedThemeIds"),
               this.get("model.user_option.theme_key_seq")
             );
           }
