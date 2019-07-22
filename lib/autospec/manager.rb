@@ -72,6 +72,8 @@ class Autospec::Manager
   end
 
   def ensure_all_specs_will_run(current_runner = nil)
+    return if @opts[:change_only]
+
     puts "@@@@@@@@@@@@ ensure_all_specs_will_run" if @debug
 
     @queue.reject! { |_, s, _| s == "spec" }

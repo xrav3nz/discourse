@@ -11,6 +11,7 @@ task "autospec" => :environment do
   debug = ARGV.any? { |a|  a == "d" || a == "debug" } || ENV["DEBUG"]
   force_polling = ARGV.any? { |a| a == "p" || a == "polling" }
   latency = ((ARGV.find { |a| a =~ /l=|latency=/ } || "").split("=")[1] || 3).to_i
+  change_only = ARGV.include?('change-only')
 
   if force_polling
     puts "Polling has been forced (slower) - checking every #{latency} #{"second".pluralize(latency)}"
@@ -20,5 +21,10 @@ task "autospec" => :environment do
 
   puts "@@@@@@@@@@@@ Running in debug mode" if debug
 
-  Autospec::Manager.run(force_polling: force_polling, latency: latency, debug: debug)
+  Autospec::Manager.run(
+    force_polling: force_polling,
+    latency: latency,
+    debug: debug,
+    change_only: change_only,
+  )
 end
