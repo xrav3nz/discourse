@@ -147,7 +147,7 @@
 }
 
 .user-menu {
-  .notifications {
+  .quick-access-panel {
     width: 100%;
     display: table;
 
@@ -246,7 +246,7 @@
   }
 }
 
-.notifications .logout {
+.quick-access-panel .logout {
   padding: 0.25em;
   &:hover {
     background-color: $highlight-medium;
