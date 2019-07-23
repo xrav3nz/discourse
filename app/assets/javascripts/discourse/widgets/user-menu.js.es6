@@ -8,6 +8,7 @@ const UserMenuAction = {
 };
 
 const QuickAccess = {
+  BOOKMARKS: "bookmarks",
   NOTIFICATIONS: "notifications"
 };
 
@@ -75,7 +76,9 @@ createWidget("user-menu-links", {
       label: "user.bookmarks",
       className: "user-bookmarks-link",
       icon: "bookmark",
-      href: `${path}/activity/bookmarks`
+      href: `${path}/activity/bookmarks`,
+      action: UserMenuAction.QUICK_ACCESS,
+      actionParam: QuickAccess.BOOKMARKS
     });
 
     if (siteSettings.enable_personal_messages) {

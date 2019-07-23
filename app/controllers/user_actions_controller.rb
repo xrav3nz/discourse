@@ -4,7 +4,7 @@ class UserActionsController < ApplicationController
 
   def index
     params.require(:username)
-    params.permit(:filter, :offset, :acting_username)
+    params.permit(:filter, :offset, :acting_username, :limit)
 
     per_chunk = 30
 
@@ -17,7 +17,7 @@ class UserActionsController < ApplicationController
       user_id: user.id,
       user: user,
       offset: params[:offset].to_i,
-      limit: per_chunk,
+      limit: params[:limit].to_i || per_chunk,
       action_types: action_types,
       guardian: guardian,
       ignore_private_messages: params[:filter] ? false : true,
