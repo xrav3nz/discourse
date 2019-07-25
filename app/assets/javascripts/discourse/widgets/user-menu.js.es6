@@ -9,6 +9,7 @@ const UserMenuAction = {
 
 const QuickAccess = {
   BOOKMARKS: "bookmarks",
+  MESSAGES: "messages",
   NOTIFICATIONS: "notifications"
 };
 
@@ -86,7 +87,9 @@ createWidget("user-menu-links", {
         label: "user.private_messages",
         className: "user-pms-link",
         icon: "envelope",
-        href: `${path}/messages`
+        href: `${path}/messages`,
+        action: UserMenuAction.QUICK_ACCESS,
+        actionParam: QuickAccess.MESSAGES
       });
     }
 
