@@ -25,6 +25,7 @@ module SvgSprite
     "ban",
     "bars",
     "bed",
+    "bell",
     "bell-slash",
     "bold",
     "book",

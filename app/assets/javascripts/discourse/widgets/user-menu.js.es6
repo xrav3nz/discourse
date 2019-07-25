@@ -3,6 +3,14 @@ import { h } from "virtual-dom";
 import { formatUsername } from "discourse/lib/utilities";
 import hbs from "discourse/widgets/hbs-compiler";
 
+const UserMenuAction = {
+  QUICK_ACCESS: "quickAccess"
+};
+
+const QuickAccess = {
+  NOTIFICATIONS: "notifications"
+};
+
 let extraGlyphs;
 
 export function addUserMenuGlyph(glyph) {
@@ -52,6 +60,15 @@ createWidget("user-menu-links", {
         href: `${path}/messages`
       });
     }
+
+    glyphs.push({
+      label: "user.notifications",
+      className: "user-notifications-link",
+      icon: "bell",
+      href: `${path}/notifications`,
+      action: UserMenuAction.QUICK_ACCESS,
+      actionParam: QuickAccess.NOTIFICATIONS
+    });
 
     const profileLink = {
       route: "user",
@@ -129,19 +146,26 @@ export default createWidget("user-menu", {
     showLogoutButton: true
   },
 
+  quickAccess(type) {
+    if (this.state.currentQuickAccess !== type) {
+      this.state.currentQuickAccess = type;
+    }
+  },
+
   defaultState() {
     return {
       hasUnread: false,
-      markUnread: null
+      markUnread: null,
+      quickAccessType: QuickAccess.NOTIFICATIONS
     };
   },
 
   panelContents() {
     const path = this.currentUser.get("path");
 
-    let result = [
+    const result = [
       this.attach("user-menu-links", { path }),
-      this.attach("user-notifications", { path })
+      this.quickAccessPanel(path)
     ];
 
     if (this.settings.showLogoutButton || this.state.hasUnread) {
@@ -175,12 +199,19 @@ export default createWidget("user-menu", {
     return result;
   },
 
+  quickAccessPanel(path) {
+    // This deliberately does NOT fallback to a default quick access panel.
+    return this.attach(`quick-access-${this.state.currentQuickAccess}`, {
+      path
+    });
+  },
+
   dismissNotifications() {
     return this.state.markRead();
   },
 
-  notificationsLoaded({ notifications, markRead }) {
-    this.state.hasUnread = notifications.filterBy("read", false).length > 0;
+  itemsLoaded({ hasUnread, markRead }) {
+    this.state.hasUnread = hasUnread;
     this.state.markRead = markRead;
   },
 
