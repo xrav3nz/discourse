@@ -1,21 +1,62 @@
+import { h } from "virtual-dom";
+
 import { createWidget } from "discourse/widgets/widget";
 import { headerHeight } from "discourse/components/site-header";
-import { h } from "virtual-dom";
-import DiscourseURL from "discourse/lib/url";
-import { ajax } from "discourse/lib/ajax";
 
-export default createWidget("user-notifications", {
-  tagName: "div.notifications",
-  buildKey: () => "user-notifications",
+export default createWidget("quick-access-panel", {
+  tagName: "div.quick-access-panel",
+  // buildKey: () =>
+  //   throw Error('Cannot attach abstract widget "quick-acess-panel"'),
+
+  markReadRequest() {
+    return Ember.RSVP.Promise.resolve();
+  },
+
+  hasUnread() {
+    return false;
+  },
+
+  showAll() {},
+
+  hasMore() {
+    return false;
+  },
+
+  findStaleItems() {
+    return [];
+  },
+
+  findNewItems() {
+    return Ember.RSVP.Promise.resolve([]);
+  },
+
+  newItemsLoaded() {},
+
+  itemHtml(item) {}, // eslint-disable-line no-unused-vars
 
   defaultState() {
-    return { notifications: [], loading: false, loaded: false };
+    return { items: [], loading: false, loaded: false };
   },
 
   markRead() {
-    ajax("/notifications/mark-read", { method: "PUT" }).then(() => {
+    this.markReadRequest().then(() => {
       this.refreshNotifications(this.state);
     });
+  },
+
+  estimateItemLimit() {
+    // estimate (poorly) the amount of notifications to return
+    let limit = Math.round(($(window).height() - headerHeight()) / 55);
+
+    // we REALLY don't want to be asking for negative counts of notifications
+    // less than 5 is also not that useful
+    if (limit < 5) {
+      limit = 5;
+    } else if (limit > 40) {
+      limit = 40;
+    }
+
+    return limit;
   },
 
   refreshNotifications(state) {
@@ -23,56 +64,27 @@ export default createWidget("user-notifications", {
       return;
     }
 
-    // estimate (poorly) the amount of notifications to return
-    let limit = Math.round(($(window).height() - headerHeight()) / 55);
-    // we REALLY don't want to be asking for negative counts of notifications
-    // less than 5 is also not that useful
-    if (limit < 5) {
-      limit = 5;
-    }
-    if (limit > 40) {
-      limit = 40;
-    }
+    const staleItems = this.findStaleItems();
 
-    const silent = this.currentUser.get("enforcedSecondFactor");
-    const stale = this.store.findStale(
-      "notification",
-      { recent: true, silent, limit },
-      { cacheKey: "recent-notifications" }
-    );
-
-    if (stale.hasResults) {
-      const results = stale.results;
-      let content = results.get("content");
-
-      // we have to truncate to limit, otherwise we will render too much
-      if (content && content.length > limit) {
-        content = content.splice(0, limit);
-        results.set("content", content);
-        results.set("totalRows", limit);
-      }
-
-      state.notifications = results;
+    if (staleItems.length > 0) {
+      state.items = staleItems;
     } else {
       state.loading = true;
     }
 
-    stale
-      .refresh()
-      .then(notifications => {
-        if (!silent) {
-          this.currentUser.set("unread_notifications", 0);
-        }
-        state.notifications = notifications;
+    this.findNewItems()
+      .then(items => {
+        state.items = items;
       })
       .catch(() => {
-        state.notifications = [];
+        state.items = [];
       })
       .finally(() => {
         state.loading = false;
         state.loaded = true;
-        this.sendWidgetAction("notificationsLoaded", {
-          notifications: state.notifications,
+        this.newItemsLoaded();
+        this.sendWidgetAction("itemsLoaded", {
+          hasUnread: this.hasUnread(),
           markRead: () => this.markRead()
         });
         this.scheduleRerender();
@@ -84,48 +96,34 @@ export default createWidget("user-notifications", {
       this.refreshNotifications(state);
     }
 
-    const result = [];
     if (state.loading) {
-      result.push(h("div.spinner-container", h("div.spinner")));
-    } else if (state.notifications.length) {
-      const notificationItems = state.notifications.map(notificationAttrs => {
-        const notificationName = this.site.notificationLookup[
-          notificationAttrs.notification_type
-        ];
+      return [h("div.spinner-container", h("div.spinner"))];
+    }
 
-        return this.attach(
-          `${notificationName.dasherize()}-notification-item`,
-          notificationAttrs,
-          {},
-          { fallbackWidgetName: "default-notification-item" }
-        );
-      });
+    const virtualDom = [];
 
-      result.push(h("hr"));
+    if (state.items.length) {
+      virtualDom.push(h("hr"));
 
-      const items = [notificationItems];
+      const items = state.items.map(this.itemHtml.bind(this));
 
-      if (notificationItems.length > 5) {
+      if (this.hasMore()) {
         items.push(
           h(
             "li.read.last.heading.show-all",
             this.attach("button", {
               title: "notifications.more",
               icon: "chevron-down",
-              action: "showAllNotifications",
+              action: "showAll",
               className: "btn"
             })
           )
         );
       }
 
-      result.push(h("ul", items));
+      virtualDom.push(h("ul", items));
     }
 
-    return result;
-  },
-
-  showAllNotifications() {
-    DiscourseURL.routeTo(`${this.attrs.path}/notifications`);
+    return virtualDom;
   }
 });
