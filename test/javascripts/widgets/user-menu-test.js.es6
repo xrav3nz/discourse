@@ -10,7 +10,7 @@ widgetTest("basics", {
     assert.ok(find(".user-activity-link").length);
     assert.ok(find(".user-bookmarks-link").length);
     assert.ok(find(".user-preferences-link").length);
-    assert.ok(find(".notifications").length);
+    assert.ok(find(".quick-access-panel").length);
     assert.ok(find(".dismiss-link").length);
   }
 });
@@ -19,7 +19,7 @@ widgetTest("notifications", {
   template: '{{mount-widget widget="user-menu"}}',
 
   test(assert) {
-    const $links = find(".notifications li a");
+    const $links = find(".quick-access-panel li a");
 
     assert.equal($links.length, 2);
     assert.ok($links[0].href.includes("/t/a-slug/123"));
