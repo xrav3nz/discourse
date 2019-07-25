@@ -21,6 +21,32 @@ export function addUserMenuGlyph(glyph) {
 createWidget("user-menu-links", {
   tagName: "div.menu-links-header",
 
+  isCurrentlySelected({ action, actionParam }) {
+    return (
+      action === UserMenuAction.QUICK_ACCESS &&
+      actionParam === this.attrs.currentQuickAccess
+    );
+  },
+
+  glyphHtml(glyph) {
+    if (this.isCurrentlySelected(glyph)) {
+      // Selecting an already selected quick access menu will redirect the user
+      // to the full page.
+      delete glyph.action;
+      delete glyph.actionParam;
+
+      if (glyph.className) {
+        glyph.className += " selected";
+      } else {
+        glyph.className = "selected";
+      }
+    }
+
+    glyph.hideLabel = true;
+
+    return this.attach("link", glyph);
+  },
+
   html(attrs) {
     const { currentUser, siteSettings } = this;
 
@@ -112,10 +138,7 @@ createWidget("user-menu-links", {
 
     return h("ul.menu-links-row", [
       links.map(l => h("li.user", this.attach("link", l))),
-      h(
-        "li.glyphs",
-        glyphs.map(l => this.attach("link", $.extend(l, { hideLabel: true })))
-      )
+      h("li.glyphs", glyphs.map(l => this.glyphHtml(l)))
     ]);
   }
 });
@@ -156,15 +179,19 @@ export default createWidget("user-menu", {
     return {
       hasUnread: false,
       markUnread: null,
-      quickAccessType: QuickAccess.NOTIFICATIONS
+      currentQuickAccess: QuickAccess.NOTIFICATIONS
     };
   },
 
   panelContents() {
     const path = this.currentUser.get("path");
+    const { currentQuickAccess } = this.state;
 
     const result = [
-      this.attach("user-menu-links", { path }),
+      this.attach("user-menu-links", {
+        path,
+        currentQuickAccess
+      }),
       this.quickAccessPanel(path)
     ];
 
