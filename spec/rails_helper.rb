@@ -178,9 +178,10 @@ RSpec.configure do |config|
 
   config.before(:suite) do
     begin
-      ActiveRecord::Migration.check_pending!
-    rescue ActiveRecord::PendingMigrationError
-      raise "There are pending migrations, run RAILS_ENV=test bin/rake db:migrate"
+      ActiveRecord::Migration.maintain_test_schema!
+    rescue ActiveRecord::PendingMigrationError => e
+      puts e.to_s.strip
+      exit 1
     end
 
     Sidekiq.error_handlers.clear
